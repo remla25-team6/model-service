@@ -36,7 +36,7 @@ jobs:
             echo "version_patch=$PATCH" >> $GITHUB_ENV
             
       - name: Build and Push Docker Image      
-      - run: |
+        run: |
           IMG="ghcr.io/${{github.repository}}"
           IMG=${IMG@L} # lower case the image`
           docker build \

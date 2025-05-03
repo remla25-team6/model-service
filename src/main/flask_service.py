@@ -1,88 +1,179 @@
 import os
-import json
 import typing as T
 from pathlib import Path
 
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 from flasgger import Swagger
+from joblib import load
 
-#   Internal dependencies
-# try: 
-#     from lib_ml import preprocess 
-# except ImportError as err:
-#     raise RuntimeError("lib_ml package not found. Ensure it is installed in the image.") from err
+try:
+    from lib_ml import preprocess          
+except ImportError as err:
+    raise RuntimeError("lib_ml package not found in the image.") from err
 
-#   Model loading helpers
-def load_model(model_dir: str, model_file: str): # Probably going to download it from somewhere?
-    """Load the trained model into memory (executed once at container start)."""
-    full_path = Path(model_dir) / model_file
-    if not full_path.exists():
-        raise FileNotFoundError(f"Model artefact not found: {full_path.resolve()}")
-    # Choose your preferred deserialization library (joblib, pickle, torch, tf…):
-    import joblib
-    return joblib.load(full_path)
+# configurations
+MODEL_VERSION   = "v0.1.0"
+MODEL_FILE      = Path(f"model-{MODEL_VERSION}.pkl")
+MODEL_EMBEDDINGS = Path(f"bow-{MODEL_VERSION}.pkl")
 
+# load artefacts once
+def _load(path: Path, label: str):
+    if not path.exists():
+        raise FileNotFoundError(f"{label} not found: {path.resolve()}")
+    return load(path)
 
-#   Flask app
-app = Flask(__name__)
+MODEL = _load(MODEL_FILE, "Model")           # ML model
+EMB   = _load(MODEL_EMBEDDINGS, "Vectoriser")  # CountVectorizer
+
+# flask app
+app     = Flask(__name__)
 swagger = Swagger(app)
 
-# Load the model once at startup
-# MODEL_DIR = os.getenv("MODEL_PATH", "./model")
-# MODEL_FILE = os.getenv("MODEL_NAME", "model.pkl")
-# MODEL = load_model(MODEL_DIR, MODEL_FILE)
+# helpers
+def _predict_one(review_text: str) -> int:
+    """
+    Clean → BoW → predict.  Works for ONE plain-string review.
+    """
+    cleaned = preprocess(review_text)[0] if isinstance(preprocess(review_text), list) else preprocess(review_text)
+    vector  = EMB.transform([cleaned]).toarray()
+    return int(MODEL.predict(vector)[0])
 
-
-#   Utility functions
-
-def _predict_one(instance: dict) -> T.Any:
-    """Preprocess a single JSON instance, run inference, and post-process."""
-    # 1. Preprocess (expects `preprocess` to return model-ready features)
-    features = preprocess(instance)           # type: ignore  (depends on your lib_ml)
-    # 2. Model inference (sklearn-style `predict` assumed; adapt if needed)
-    raw_pred = MODEL.predict([features])[0]   # type: ignore
-    # 3. Postprocess if necessary (e.g. decoding class index to label)
-    return raw_pred
-
-
-#   Routes
-
-# Health route for the future
-# @app.route("/health", methods=["GET"])
-# def health():
-#     """Simple liveness probe for Kubernetes/Docker health-checks."""
-#     return jsonify(status="ok", model_version=os.getenv("GIT_COMMIT", "dev")), 200
-
-
+# routes
 @app.route("/predict", methods=["POST"])
 def predict():
     """
-    Submit some JSON data to be processed for prediction by ML model.
-    Expects JSON payload: {"instances": [ {...}, {...} ]}
-    where each `{...}` is a raw input instance consumable by your preprocessing fn.
+    Predict sentiment for a batch of reviews.
     ---
+    tags:
+      - Inference
+    consumes:
+      - application/json
     parameters:
-      - name: input_data
+      - name: payload
         in: body
-        description: JSON data to be processed for prediction by ML model
+        required: true
+        schema:
+          type: object
+          required:
+            - reviews
+          properties:
+            reviews:
+              type: array
+              items:
+                type: string
+              example: ["Loved it!", "Terrible service"]
     responses:
       200:
-        description: Outputs positive or negative dependent on data
+        description: List of model predictions (1 = positive, 0 = negative)
+        schema:
+          type: object
+          properties:
+            predictions:
+              type: array
+              items:
+                type: integer
+              example: [1, 0]
+      400:
+        description: Bad request – payload malformed
+      500:
+        description: Model inference failed on the server
     """
     payload = request.get_json(silent=True)
-    if not payload or "instances" not in payload:
-        return jsonify(error="Payload must be JSON with an 'instances' field"), 400
+    if not payload or "reviews" not in payload:
+        return jsonify(error="JSON body must contain a 'reviews' array"), 400
 
-    instances = payload["instances"]
     try:
-        preds = [_predict_one(inst) for inst in instances]
-    except Exception as exc:  # broad catch to return graceful 5xx
+        preds = [_predict_one(txt) for txt in payload["reviews"]]
+    except Exception as exc:
         app.logger.exception("Prediction failed")
         return jsonify(error=str(exc)), 500
 
     return jsonify(predictions=preds), 200
 
 
-# Main loop
+@app.route("/correct", methods=["POST"])
+def correct():
+    """
+    Submit ground-truth feedback for earlier predictions.
+    ---
+    tags:
+      - Feedback
+    consumes:
+      - application/json
+    parameters:
+      - name: payload
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - entries
+          properties:
+            entries:
+              type: array
+              items:
+                type: object
+                required:
+                  - input
+                  - truth
+                properties:
+                  input:
+                    type: string
+                    example: "Loved it!"
+                  truth:
+                    type: integer
+                    enum: [0, 1]
+                    description: 1 = positive, 0 = negative
+    responses:
+      200:
+        description: Echoes model prediction, truth label and match flag
+        schema:
+          type: object
+          properties:
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  input:
+                    type: string
+                  prediction:
+                    type: integer
+                  truth:
+                    type: integer
+                  match:
+                    type: boolean
+      400:
+        description: Bad request – payload malformed
+      500:
+        description: Server error while processing feedback
+    """
+    payload = request.get_json(silent=True)
+    if not payload or "entries" not in payload:
+        return jsonify(error="JSON body must contain an 'entries' array"), 400
+
+    results: list[dict[str, T.Any]] = []
+    try:
+        for item in payload["entries"]:
+            inp   = item["input"]
+            truth = int(item["truth"])
+            pred  = _predict_one(inp)
+            results.append(
+                {
+                    "input": inp,
+                    "prediction": pred,
+                    "truth": truth,
+                    "match": pred == truth,
+                }
+            )
+            # TODO: persist (inp, truth, pred) for future re-training
+    except Exception as exc:
+        app.logger.exception("Correction handling failed")
+        return jsonify(error=str(exc)), 500
+
+    return jsonify(results=results), 200
+
+
+# main
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8080")), debug=True)

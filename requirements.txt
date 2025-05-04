@@ -1,0 +1,7 @@
+Flask==2.3.3
+flasgger==0.9.7.1
+scikit-learn==1.6.1
+joblib==1.4.2
+pandas==2.2.3
+# ML-lib install
+https://github.com/remla25-team6/lib-ml/releases/download/v0.1.0/lib_ml-0.1.0-py3-none-any.whl

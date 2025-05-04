@@ -5,13 +5,14 @@ from pathlib import Path
 from flask import Flask, jsonify, request
 from flasgger import Swagger
 from joblib import load
+import pandas as pd
 
 try:
-    from lib_ml import preprocess          
+    from lib_ml.preprocess import preprocess
 except ImportError as err:
     raise RuntimeError("lib_ml package not found in the image.") from err
 
-# configurations
+# Configurations (should be replaced with environment variables in future
 MODEL_VERSION   = "v0.1.0"
 MODEL_FILE      = Path(f"model-{MODEL_VERSION}.pkl")
 MODEL_EMBEDDINGS = Path(f"bow-{MODEL_VERSION}.pkl")
@@ -23,26 +24,40 @@ def _load(path: Path, label: str):
     return load(path)
 
 MODEL = _load(MODEL_FILE, "Model")           # ML model
-EMB   = _load(MODEL_EMBEDDINGS, "Vectoriser")  # CountVectorizer
+CV_EMB = _load(MODEL_EMBEDDINGS, "Vectoriser")  # CountVectorizer word embeddings
 
 # flask app
 app     = Flask(__name__)
 swagger = Swagger(app)
 
 # helpers
+
+# Converts the reviews payload to a pd DataFrame for model inference
+def convert_to_df(string_review: str) -> pd.DataFrame:
+    """
+    Turn a string or list-of-strings into a DataFrame with column 'Review'.
+    """
+    if isinstance(string_review, str):
+        return pd.DataFrame({"Review": [string_review]})
+    else:
+        raise ValueError("Invalid input format. Expected a string as input.")
+
+# Predict sentiment for a single review
 def _predict_one(review_text: str) -> int:
     """
-    Clean → BoW → predict.  Works for ONE plain-string review.
+    Convert string to DF -> preprocess → BoW vector embed → predict.  Works for ONE plain-string review.
     """
-    cleaned = preprocess(review_text)[0] if isinstance(preprocess(review_text), list) else preprocess(review_text)
-    vector  = EMB.transform([cleaned]).toarray()
-    return int(MODEL.predict(vector)[0])
+    df     = convert_to_df(review_text)
+    corpus = preprocess(df, len(df))       # preprocess the review
+    cleaned  = corpus[0]
+    vec    = CV_EMB.transform([cleaned]).toarray()
+    return int(MODEL.predict(vec)[0])
 
 # routes
 @app.route("/predict", methods=["POST"])
 def predict():
     """
-    Predict sentiment for a batch of reviews.
+    Predict sentiment for a single review.
     ---
     tags:
       - Inference
@@ -55,46 +70,44 @@ def predict():
         schema:
           type: object
           required:
-            - reviews
+            - input
           properties:
-            reviews:
-              type: array
-              items:
-                type: string
-              example: ["Loved it!", "Terrible service"]
+            input:
+              type: string
+              example: "Loved it! Some very good positive (or negative) review!"
     responses:
       200:
-        description: List of model predictions (1 = positive, 0 = negative)
+        description: Model prediction ("pos" = positive, "neg" = negative)
         schema:
           type: object
           properties:
-            predictions:
-              type: array
-              items:
-                type: integer
-              example: [1, 0]
+            sentiment:
+              type: string
+              enum: ["pos", "neg"]
+              example: "pos"
       400:
         description: Bad request – payload malformed
       500:
         description: Model inference failed on the server
     """
     payload = request.get_json(silent=True)
-    if not payload or "reviews" not in payload:
-        return jsonify(error="JSON body must contain a 'reviews' array"), 400
+    if not payload or "input" not in payload:
+        return jsonify(error="JSON body must contain an 'input' field"), 400
 
     try:
-        preds = [_predict_one(txt) for txt in payload["reviews"]]
+        pred = _predict_one(payload["input"])
     except Exception as exc:
         app.logger.exception("Prediction failed")
         return jsonify(error=str(exc)), 500
 
-    return jsonify(predictions=preds), 200
+    sentiment = "pos" if pred == 1 else "neg"
+    return jsonify(sentiment=sentiment), 200
 
-
+# Feedback sentiment for a single review
 @app.route("/correct", methods=["POST"])
 def correct():
     """
-    Submit ground-truth feedback for earlier predictions.
+    Submit ground-truth feedback for a single prediction.
     ---
     tags:
       - Feedback
@@ -110,69 +123,65 @@ def correct():
             - entries
           properties:
             entries:
-              type: array
-              items:
-                type: object
-                required:
-                  - input
-                  - truth
-                properties:
-                  input:
-                    type: string
-                    example: "Loved it!"
-                  truth:
-                    type: integer
-                    enum: [0, 1]
-                    description: 1 = positive, 0 = negative
+              type: object
+              required:
+                - input
+                - truth
+              properties:
+                input:
+                  type: string
+                  example: "Loved it! Some very good positive review!"
+                truth:
+                  type: string
+                  enum: ["pos", "neg"]
+                  description: "User’s label: 'pos' = positive, 'neg' = negative"
     responses:
       200:
-        description: Echoes model prediction, truth label and match flag
+        description: Echoes user input, their label, and the model’s sentiment
         schema:
           type: object
           properties:
-            results:
-              type: array
-              items:
-                type: object
-                properties:
-                  input:
-                    type: string
-                  prediction:
-                    type: integer
-                  truth:
-                    type: integer
-                  match:
-                    type: boolean
+            input:
+              type: string
+            truth:
+              type: string
+              enum: ["pos", "neg"]
+              example: "pos"
+            prediction:
+              type: string
+              enum: ["pos", "neg"]
+              example: "neg"
       400:
         description: Bad request – payload malformed
       500:
         description: Server error while processing feedback
     """
     payload = request.get_json(silent=True)
-    if not payload or "entries" not in payload:
-        return jsonify(error="JSON body must contain an 'entries' array"), 400
+    if not payload or "entries" not in payload or not isinstance(payload["entries"], dict):
+        return jsonify(error="JSON body must contain an 'entries' object"), 400
 
-    results: list[dict[str, T.Any]] = []
+    entry = payload["entries"]
+    if "input" not in entry or "truth" not in entry:
+        return jsonify(error="'entries' must contain 'input' and 'truth'"), 400
+
+    inp       = entry["input"]
+    truth_raw = entry["truth"]
+    if truth_raw not in {"pos", "neg"}:
+        return jsonify(error="'truth' must be \"pos\" or \"neg\""), 400
+
     try:
-        for item in payload["entries"]:
-            inp   = item["input"]
-            truth = int(item["truth"])
-            pred  = _predict_one(inp)
-            results.append(
-                {
-                    "input": inp,
-                    "prediction": pred,
-                    "truth": truth,
-                    "match": pred == truth,
-                }
-            )
-            # TODO: persist (inp, truth, pred) for future re-training
+        pred_int = _predict_one(inp)
     except Exception as exc:
         app.logger.exception("Correction handling failed")
         return jsonify(error=str(exc)), 500
 
-    return jsonify(results=results), 200
+    prediction = "pos" if pred_int == 1 else "neg"
 
+    return jsonify(
+        input=inp,
+        truth=truth_raw,
+        prediction=prediction
+    ), 200
 
 # main
 if __name__ == "__main__":

@@ -55,7 +55,6 @@ gh release download "$VER" -R "$GH_REPO" \
 # 3  Run the service
 export FLASK_APP=src/main/flask_service.py
 flask run -p 8080      # → http://localhost:8080
-  Run the service
 ```
 
 ```bash

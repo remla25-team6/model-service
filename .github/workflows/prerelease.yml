@@ -1,0 +1,79 @@
+name: Prerelease
+
+on: 
+  push:
+    branches:
+      main
+
+env:
+  ML_MODEL_VERSION: v0.1.0
+  
+jobs:
+  build-and-prerelease:
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download model artifacts
+        run: |
+          gh release download "$ML_MODEL_VERSION" \
+            -R remla25-team6/model-training \
+            -p "*-${ML_MODEL_VERSION}.pkl"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Log in to GitHub container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_TOKEN }}
+
+      - name: Get latest tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Calculate pre-release version
+        run: |
+          VERSION=${latest_tag#v}
+          MAJOR=$(echo "$VERSION" | cut -d . -f 1)
+          MINOR=$(echo "$VERSION" | cut -d . -f 2)
+          PATCH=$(echo "$VERSION" | cut -d . -f 3)
+          PATCH=$((PATCH + 1))
+          DATETIME=$(date +%Y%m%d.%H%M%S)
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH-pre.$DATETIME"
+          echo "version=$NEW_VERSION"  >> $GITHUB_ENV
+          echo "version_major=$MAJOR" >> $GITHUB_ENV
+          echo "version_minor=$MINOR" >> $GITHUB_ENV
+          echo "version_patch=$PATCH" >> $GITHUB_ENV
+
+      - name: Tag pre-release commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ env.version }}
+          git push origin v${{ env.version }}
+
+      - name: Create GitHub pre-release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.version }}
+          prerelease: true
+            
+      - name: Build and push Docker image      
+        run: |
+          IMG="ghcr.io/${{github.repository}}"
+          IMG=${IMG@L} # lower case the image`
+          docker build \
+            --tag $IMG:${{ env.version }} \
+            --tag $IMG:${{ env.version_major }}.${{ env.version_minor }}.latest \
+            --tag $IMG:${{ env.version_major }}.latest \
+            --tag $IMG:latest \
+            .
+          docker push --all-tags $IMG

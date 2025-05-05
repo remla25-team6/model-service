@@ -10,8 +10,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       # Run some tests
       # - name: Run Tests
@@ -20,7 +22,7 @@ jobs:
       #   run: tests
 
       # Download model embeddings and model pickels
-      - name: Download model artefacts
+      - name: Download model artifacts
         run: |
           gh release download "$ML_MODEL_VERSION" \
             -R remla25-team6/model-training \
@@ -29,7 +31,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       # Docker Build and Push
-      - uses: docker/login-action@v3
+      - name: Log in to GitHub container registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -46,8 +49,13 @@ jobs:
             echo "version_major=$MAJOR" >> $GITHUB_ENV
             echo "version_minor=$MINOR" >> $GITHUB_ENV
             echo "version_patch=$PATCH" >> $GITHUB_ENV
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.version }}
             
-      - name: Build and Push Docker Image      
+      - name: Build and push Docker image
         run: |
           IMG="ghcr.io/${{github.repository}}"
           IMG=${IMG@L} # lower case the image`

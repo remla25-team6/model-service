@@ -3,9 +3,6 @@ name: Release
 on: 
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
-
-env:
-  ML_MODEL_VERSION: v0.1.0
   
 jobs:
   build:
@@ -20,6 +17,17 @@ jobs:
       #   env:
       #     MODEL_URL: https://example.com/api
       #   run: tests
+
+      # Disclaimer: Queried ChatGPT-4o for instructions on how to retrieve the latest stable model release
+      - name: Get latest stable model release from model_training
+        run: |
+          VERSION=$(gh release list -R remla25-team6/model-training \
+              --limit 100 \
+              --json tagName,isPrerelease \
+              --jq '[.[] | select(.isPrerelease == false)][0].tagName')
+            echo "ML_MODEL_VERSION=$VERSION" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # Download model embeddings and model pickels
       - name: Download model artifacts

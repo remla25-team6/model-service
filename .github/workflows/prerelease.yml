@@ -1,7 +1,9 @@
 name: Prerelease
 
 on: 
-  push
+  push:
+    branches:
+      main
   
 jobs:
   build-and-prerelease:

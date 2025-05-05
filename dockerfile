@@ -1,5 +1,7 @@
 FROM python:3.12.10-slim
-ARG ML_MODEL_VERSION=v0.1.0
+ARG ML_MODEL_VERSION
+ENV ML_MODEL_VERSION=${ML_MODEL_VERSION}
+
 WORKDIR /app
 
 # Install reqs for python

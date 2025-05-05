@@ -79,6 +79,7 @@ jobs:
           IMG="ghcr.io/${{github.repository}}"
           IMG=${IMG@L} # lower case the image`
           docker build \
+            --build-arg MODEL_VERSION=${{ env.ML_MODEL_VERSION }}
             --tag $IMG:${{ env.version }} \
             --tag $IMG:${{ env.version_major }}.${{ env.version_minor }}.latest \
             --tag $IMG:${{ env.version_major }}.latest \

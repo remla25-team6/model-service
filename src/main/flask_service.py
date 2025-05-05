@@ -13,11 +13,11 @@ except ImportError as err:
     raise RuntimeError("lib_ml package not found in the image.") from err
 
 # Configurations (should be replaced with environment variables in future
-MODEL_VERSION   = "v0.1.0"
+MODEL_VERSION = os.getenv("ML_MODEL_VERSION")
 MODEL_FILE      = Path(f"model-{MODEL_VERSION}.pkl")
 MODEL_EMBEDDINGS = Path(f"bow-{MODEL_VERSION}.pkl")
 
-# load artefacts once
+# load artifacts once
 def _load(path: Path, label: str):
     if not path.exists():
         raise FileNotFoundError(f"{label} not found: {path.resolve()}")

@@ -12,10 +12,14 @@ try:
 except ImportError as err:
     raise RuntimeError("lib_ml package not found in the image.") from err
 
-# Configurations (should be replaced with environment variables in future
+# Set model variables
 MODEL_VERSION = os.getenv("ML_MODEL_VERSION")
 MODEL_FILE      = Path(f"model-{MODEL_VERSION}.pkl")
 MODEL_EMBEDDINGS = Path(f"bow-{MODEL_VERSION}.pkl")
+
+# Flask listening variables
+FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
+FLASK_PORT = int(os.getenv("FLASK_PORT", "8080"))
 
 # load artifacts once
 def _load(path: Path, label: str):
@@ -185,4 +189,4 @@ def correct():
 
 # main
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8080")), debug=True)
+  app.run(host=FLASK_HOST, port=FLASK_PORT, debug=True)

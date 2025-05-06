@@ -2,6 +2,12 @@ FROM python:3.12.10-slim
 ARG ML_MODEL_VERSION
 ENV ML_MODEL_VERSION=${ML_MODEL_VERSION}
 
+# Flask listening port
+ARG FLASK_PORT=8080
+ENV FLASK_PORT=${FLASK_PORT}
+ARG FLASK_HOST=0.0.0.0
+ENV FLASK_HOST=${FLASK_HOST}
+
 WORKDIR /app
 
 # Disclaimer: Used ChatGPT o4-mini-high for instructions on how to install git.

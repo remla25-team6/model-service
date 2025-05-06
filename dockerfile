@@ -1,7 +1,14 @@
 FROM python:3.12.10-slim
-ARG ML_MODEL_VERSION=v0.1.0
+ARG ML_MODEL_VERSION
+ENV ML_MODEL_VERSION=${ML_MODEL_VERSION}
+
 WORKDIR /app
 
+# Disclaimer: Used ChatGPT o4-mini-high for instructions on how to install git.
+# Install git and clean up apt cache
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/*
 # Install reqs for python
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt

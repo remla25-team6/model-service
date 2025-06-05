@@ -4,6 +4,7 @@ on:
   push:
     branches:
       main
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   
 jobs:
   build-and-prerelease:
@@ -44,9 +45,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GH_TOKEN }}
 
-      - name: Get latest tag
+      - name: Determine trigger type
+        id: trigger
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "triggered_by=tag" >> $GITHUB_OUTPUT
+          else
+            echo "triggered_by=branch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get latest tag from history
+        if: steps.trigger.outputs.triggered_by == 'branch'
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Get latest tag from pushed tag
+        if: steps.trigger.outputs.triggered_by == 'tag'
+        run: |
+          LATEST_TAG=${GITHUB_REF:11}
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
 
       - name: Calculate pre-release version
@@ -67,7 +84,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag v${{ env.version }}
+          git fetch origin main
+          MAIN_SHA=$(git rev-parse origin/main)
+          git tag v${{ env.version }} $MAIN_SHA
           git push origin v${{ env.version }}
 
       - name: Create GitHub pre-release

@@ -21,7 +21,7 @@ A lightweight Flask micro‑service that exposes a **sentiment‑analysis model*
 ```text
 model-service/
 ├── .github/workflows/release.yml   # CI / CD pipeline
-├── dockerfile                      # Image build recipe (downloads model artefacts)
+├── dockerfile                      # Image build recipe
 ├── requirements.txt                # Python run‑time deps
 └── src/main/
     └── flask_service.py            # Application entry‑point (Flask + routes)
@@ -36,23 +36,12 @@ model-service/
 > Requires Python ≥ 3.10 and `pip`.  You’ll also need the model artefacts in the working directory (download them from the corresponding GitHub release).
 
 ```bash
-# 1  Install dependencies
+# 1  Install dependencies
 pip install -r requirements.txt
 python -m nltk.downloader stopwords  # one‑time corpus fetch
 
-# 2  Download the artefacts (bash)
-export VER=v0.1.0  # or whichever version you need
-# via GitHub CLI (recommended)
-GH_REPO=remla25-team6/model-training
-
-gh release download "$VER" -R "$GH_REPO" \
-  -p "model-${VER}.pkl" \
-  -p "bow-${VER}.pkl" \
-  -D src/main
-
-# → files now live next to src/main/flask_service.py
-
-# 3  Run the service
+# 2  Run the service
+export ML_MODEL_VERSION=v0.1.0  # or whichever version you need
 export FLASK_APP=src/main/flask_service.py
 flask run -p 8080      # → http://localhost:8080
 ```

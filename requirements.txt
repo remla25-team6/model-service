@@ -4,4 +4,4 @@ scikit-learn==1.6.1
 joblib==1.4.2
 pandas==2.2.3
 requests==2.32.3
-git+https://github.com/remla25-team6/lib-ml.git
+git+https://github.com/remla25-team6/lib-ml.git@v0.1.0

@@ -22,8 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m nltk.downloader --quiet stopwords
 # Copy flask webservice to app
 COPY src/main/flask_service.py /app/
+
 # Copy model embeddings to webservice
-COPY bow-${ML_MODEL_VERSION}.pkl /app/
-COPY model-${ML_MODEL_VERSION}.pkl /app/
+# COPY bow-${ML_MODEL_VERSION}.pkl /app/
+# COPY model-${ML_MODEL_VERSION}.pkl /app/
 
 ENTRYPOINT ["python", "flask_service.py"]

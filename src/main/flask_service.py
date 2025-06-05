@@ -30,9 +30,10 @@ def download_model_file(filename: str) -> Path:
         url = f"{BASE_URL}/{filename}"
         response = requests.get(url)
         if response.status_code != 200:
-            raise RuntimeError(f"Failed to download {fileame} from {url}: {response.status_code}")
+            raise RuntimeError(f"Failed to download {filename} from {url}: {response.status_code}")
         with open(local_path, "wb") as f:
             f.write(response.content)
+        print(f"{filename} successfully downloaded.")
     else:
         print(f"{filename} already cached.")
     return local_path

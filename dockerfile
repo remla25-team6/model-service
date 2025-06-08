@@ -6,6 +6,9 @@ ARG FLASK_PORT=8080
 ENV FLASK_PORT=${FLASK_PORT}
 ARG FLASK_HOST=0.0.0.0
 ENV FLASK_HOST=${FLASK_HOST}
+# Model download URL (appended by {MODEL_VERSION})
+ARG BASE_URL="https://github.com/remla25-team6/model-training/releases/download/"
+ENV BASE_URL=${BASE_URL}
 
 WORKDIR /app
 
@@ -21,9 +24,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m nltk.downloader --quiet stopwords
 # Copy flask webservice to app
 COPY src/main/flask_service.py /app/
-
-# Copy model embeddings to webservice
-# COPY bow-${ML_MODEL_VERSION}.pkl /app/
-# COPY model-${ML_MODEL_VERSION}.pkl /app/
 
 ENTRYPOINT ["python", "flask_service.py"]

@@ -62,11 +62,9 @@ curl -X POST http://localhost:8080/predict \
 # Build image using embedded artefact download
 export ML_MODEL_VERSION=v0.1.0
 
-docker build \
-  --build-arg ML_MODEL_VERSION=$ML_MODEL_VERSION \
-  -t model-service:$ML_MODEL_VERSION .
+docker build -t model-service:$ML_MODEL_VERSION .
 
-docker run --rm -p 8080:8080 model-service:$ML_MODEL_VERSION
+docker run --rm -p 8080:8080 -e ML_MODEL_VERSION=$ML_MODEL_VERSION model-service:$ML_MODEL_VERSION
 ```
 
 ## 🐳 Pull Docker image

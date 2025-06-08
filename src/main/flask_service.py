@@ -18,8 +18,8 @@ MODEL_VERSION = os.getenv("ML_MODEL_VERSION")
 MODEL_CACHE_DIR = Path("./model_cache")
 MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-
-BASE_URL = f"https://github.com/remla25-team6/model-training/releases/download/{MODEL_VERSION}"
+BASE_URL_PREFIX = os.getenv("BASE_URL")
+BASE_URL = BASE_URL_PREFIX + MODEL_VERSION
 
 def download_model_file(filename: str) -> Path:
     """

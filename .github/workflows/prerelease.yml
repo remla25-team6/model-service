@@ -18,27 +18,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      
-      # Disclaimer: Queried ChatGPT-4o for instructions on how to retrieve the latest stable model release
-#      - name: Get latest stable model release from model_training
-#        run: |
-#          VERSION=$(gh release list -R remla25-team6/model-training \
-#              --limit 100 \
-#              --json tagName,isPrerelease \
-#              --jq '[.[] | select(.isPrerelease == false)][0].tagName')
-#            echo "ML_MODEL_VERSION=$VERSION" >> $GITHUB_ENV
-#        env:
-#          GH_TOKEN: ${{ github.token }}
-
-      # Model artifacts no longer downloaded on release
-      # - name: Download model artifacts
-      #   run: |
-      #     gh release download "$ML_MODEL_VERSION" \
-      #       -R remla25-team6/model-training \
-      #       -p "*-${ML_MODEL_VERSION}.pkl"
-      #   env:
-      #     GH_TOKEN: ${{ github.token }}
-
       - name: Log in to GitHub container registry
         uses: docker/login-action@v3
         with:

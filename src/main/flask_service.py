@@ -6,6 +6,7 @@ from flask import Flask, jsonify, request
 from flasgger import Swagger
 from joblib import load
 import pandas as pd
+import requests
 
 try:
     from lib_ml.preprocess import preprocess
@@ -14,8 +15,32 @@ except ImportError as err:
 
 # Set model variables
 MODEL_VERSION = os.getenv("ML_MODEL_VERSION")
-MODEL_FILE      = Path(f"model-{MODEL_VERSION}.pkl")
-MODEL_EMBEDDINGS = Path(f"bow-{MODEL_VERSION}.pkl")
+MODEL_CACHE_DIR = Path("./model_cache")
+MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+BASE_URL_PREFIX = os.getenv("BASE_URL")
+BASE_URL = BASE_URL_PREFIX + MODEL_VERSION
+
+def download_model_file(filename: str) -> Path:
+    """
+    Downloads the model artifact if it doesnt exist.
+    """
+    local_path = MODEL_CACHE_DIR / filename
+    if not local_path.exists():
+        url = f"{BASE_URL}/{filename}"
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise RuntimeError(f"Failed to download {filename} from {url}: {response.status_code}")
+        with open(local_path, "wb") as f:
+            f.write(response.content)
+        print(f"{filename} successfully downloaded.")
+    else:
+        print(f"{filename} already cached.")
+    return local_path
+
+
+MODEL_FILE = download_model_file(f"model-{MODEL_VERSION}.pkl")
+MODEL_EMBEDDINGS = download_model_file(f"bow-{MODEL_VERSION}.pkl")
 
 # Flask listening variables
 FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")

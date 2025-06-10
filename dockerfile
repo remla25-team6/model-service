@@ -5,6 +5,10 @@ ARG BASE_URL="https://github.com/remla25-team6/model-training/releases/download/
 
 # Base stage
 FROM python:3.12.10-slim AS base
+# Redeclare ARGs
+ARG FLASK_PORT
+ARG FLASK_HOST
+ARG BASE_URL
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     FLASK_PORT=${FLASK_PORT} \
@@ -28,7 +32,7 @@ RUN python -m nltk.downloader --quiet stopwords
 COPY src/main/flask_service.py /app/
 
 # Final runtime stage
-FROM --platform=$TARGETPLATFORM base
+FROM base
 # Copy only the installed python packages and application code from the builder stage
 COPY --from=builder /root/.local /root/.local
 COPY --from=builder /app /app

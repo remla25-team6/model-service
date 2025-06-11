@@ -45,15 +45,23 @@ jobs:
         with:
           tag_name: v${{ env.version }}
           generate_release_notes: true
-            
+
+      # Docker buildx setup   
+      - name: Set up QEMU emulation
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Build and push Docker image
         run: |
           IMG="ghcr.io/${{github.repository}}"
           IMG=${IMG@L} # lower case the image`
-          docker build \
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
             --tag $IMG:${{ env.version }} \
             --tag $IMG:${{ env.version_major }}.${{ env.version_minor }}.latest \
             --tag $IMG:${{ env.version_major }}.latest \
             --tag $IMG:latest \
+            --push \
             .
-          docker push --all-tags $IMG

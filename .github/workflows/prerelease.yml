@@ -1,10 +1,11 @@
 name: Prerelease
 
-on:
+on: 
   push:
-    branches: main
-    tags: [ "v[0-9]+.[0-9]+.[0-9]+" ]
-
+    branches:
+      - main
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  
 jobs:
   build-and-prerelease:
     runs-on: ubuntu-24.04
@@ -13,86 +14,86 @@ jobs:
       contents: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Log in to GitHub container registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GH_TOKEN }}
+      - name: Log in to GitHub container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_TOKEN }}
 
-    - name: Determine trigger type
-      id: trigger
-      run: |
-        if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-          echo "triggered_by=tag" >> $GITHUB_OUTPUT
-        else
-          echo "triggered_by=branch" >> $GITHUB_OUTPUT
-        fi
+      - name: Determine trigger type
+        id: trigger
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "triggered_by=tag" >> $GITHUB_OUTPUT
+          else
+            echo "triggered_by=branch" >> $GITHUB_OUTPUT
+          fi
 
-    - name: Get latest tag from history
-      if: steps.trigger.outputs.triggered_by == 'branch'
-      run: |
-        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-        echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
+      - name: Get latest tag from history
+        if: steps.trigger.outputs.triggered_by == 'branch'
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
 
-    - name: Get latest tag from pushed tag
-      if: steps.trigger.outputs.triggered_by == 'tag'
-      run: |
-        LATEST_TAG=${GITHUB_REF:11}
-        echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
+      - name: Get latest tag from pushed tag
+        if: steps.trigger.outputs.triggered_by == 'tag'
+        run: |
+          LATEST_TAG=${GITHUB_REF:11}
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
 
-    - name: Calculate pre-release version
-      run: |
-        VERSION=${latest_tag#v}
-        MAJOR=$(echo "$VERSION" | cut -d . -f 1)
-        MINOR=$(echo "$VERSION" | cut -d . -f 2)
-        PATCH=$(echo "$VERSION" | cut -d . -f 3)
-        if [[ "${{ steps.trigger.outputs.triggered_by }}" == "tag" ]]; then
-          PATCH=$((PATCH + 1))
-        fi
-        DATETIME=$(date +%Y%m%d.%H%M%S)
-        NEW_VERSION="$MAJOR.$MINOR.$PATCH-pre.$DATETIME"
-        echo "version=$NEW_VERSION"  >> $GITHUB_ENV
-        echo "version_major=$MAJOR" >> $GITHUB_ENV
-        echo "version_minor=$MINOR" >> $GITHUB_ENV
-        echo "version_patch=$PATCH" >> $GITHUB_ENV
+      - name: Calculate pre-release version
+        run: |
+          VERSION=${latest_tag#v}
+          MAJOR=$(echo "$VERSION" | cut -d . -f 1)
+          MINOR=$(echo "$VERSION" | cut -d . -f 2)
+          PATCH=$(echo "$VERSION" | cut -d . -f 3)
+          if [[ "${{ steps.trigger.outputs.triggered_by }}" == "tag" ]]; then
+            PATCH=$((PATCH + 1))
+          fi
+          DATETIME=$(date +%Y%m%d.%H%M%S)
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH-pre.$DATETIME"
+          echo "version=$NEW_VERSION"  >> $GITHUB_ENV
+          echo "version_major=$MAJOR" >> $GITHUB_ENV
+          echo "version_minor=$MINOR" >> $GITHUB_ENV
+          echo "version_patch=$PATCH" >> $GITHUB_ENV
 
-    - name: Tag pre-release commit
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git fetch origin main
-        MAIN_SHA=$(git rev-parse origin/main)
-        git tag v${{ env.version }} $MAIN_SHA
-        git push origin v${{ env.version }}
+      - name: Tag pre-release commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          MAIN_SHA=$(git rev-parse origin/main)
+          git tag v${{ env.version }} $MAIN_SHA
+          git push origin v${{ env.version }}
 
-    - name: Create GitHub pre-release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ env.version }}
-        prerelease: true
+      - name: Create GitHub pre-release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.version }}
+          prerelease: true
 
-    # Docker buildx setup   
-    - name: Set up QEMU emulation
-      uses: docker/setup-qemu-action@v2
+      # Docker buildx setup   
+      - name: Set up QEMU emulation
+        uses: docker/setup-qemu-action@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    - name: Build and push Docker image
-      run: |
-        IMG="ghcr.io/${{github.repository}}"
-        IMG=${IMG@L} # lower case the image`
-        docker buildx build \
-          --platform linux/amd64,linux/arm64 \
-          --tag $IMG:${{ env.version }} \
-          --tag $IMG:${{ env.version_major }}.${{ env.version_minor }}.latest \
-          --tag $IMG:${{ env.version_major }}.latest \
-          --tag $IMG:latest \
-          --push \
-          .
+      - name: Build and push Docker image
+        run: |
+          IMG="ghcr.io/${{github.repository}}"
+          IMG=${IMG@L} # lower case the image`
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag $IMG:${{ env.version }} \
+            --tag $IMG:${{ env.version_major }}.${{ env.version_minor }}.latest \
+            --tag $IMG:${{ env.version_major }}.latest \
+            --tag $IMG:latest \
+            --push \
+            .

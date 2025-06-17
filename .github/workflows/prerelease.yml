@@ -50,6 +50,7 @@ jobs:
       - name: Calculate pre-release version
         run: |
           VERSION=${latest_tag#v}
+          VERSION=${VERSION%%-pre*}
           MAJOR=$(echo "$VERSION" | cut -d . -f 1)
           MINOR=$(echo "$VERSION" | cut -d . -f 2)
           PATCH=$(echo "$VERSION" | cut -d . -f 3)

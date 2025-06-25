@@ -2,8 +2,6 @@
 
 A lightweight Flask-based microservice for sentiment analysis, exposing a machine learning model via a REST API. This service is a component of the REMLA reference architecture and is intended to be queried by the `app-service` or any compatible HTTP client.
 
----
-
 ## Key Features
 
 | Endpoint          | Description                                                                                                                    |
@@ -12,8 +10,6 @@ A lightweight Flask-based microservice for sentiment analysis, exposing a machin
 | `POST /correct`   | Submit feedback for a review to collect corrected labels for future model re-training.                           |
 | Swagger UI        | A self-documenting API interface available at `http://<host>:<port>/apidocs`, allowing developers to interact with endpoints.       |
 | Stateless Docker Image   | During the Docker build, the model and bag-of-words vectorizer are pulled from the appropriate model-training GitHub release based on version. |
-
----
 
 ## Repository Structure
 
@@ -28,8 +24,6 @@ model-service/
 ````
 
 Note: Model artifacts (`model-<version>.pkl`, `bow-<version>.pkl`) are not committed to the repository. They are dynamically downloaded during the image build based on the `ML_MODEL_VERSION`.
-
----
 
 ## Running Locally (Development)
 
@@ -67,8 +61,6 @@ curl -X POST http://localhost:8080/predict \
 # Response: {"sentiment": "pos"}
 ```
 
----
-
 ## Running with Docker
 
 ### Build and Run
@@ -88,8 +80,6 @@ docker run --rm -p 8080:8080 \
 ```bash
 docker pull ghcr.io/remla25-team6/model-service:latest
 ```
-
----
 
 ## API Reference
 
@@ -130,8 +120,6 @@ Request:
 
 Returns the same review, the user label, and the model label.
 
----
-
 ## CI/CD
 This project uses GitHub Actions for automated container image releases.
 
@@ -155,8 +143,6 @@ To publish a pre-release:
 2. The `prerelease.yml` workflow automatically runs on every commit to `main`.
 3. It builds the image and tags it using a timestamped version like `0.1.0-pre.20250625.123456`.
 4. The images are available on GHCR for testing and staging environments.
-
----
 
 ## AI Disclaimer
 Used ChatGPT-4o to refine this README and improve technical clarity.

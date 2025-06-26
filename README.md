@@ -96,6 +96,10 @@ Response:
 ```json
 { "sentiment": "neg" }
 ```
+Or,
+```json
+{ "sentiment": "pos" }
+```
 
 | Status Code | Description                             |
 | ----------- | --------------------------------------- |

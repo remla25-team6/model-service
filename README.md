@@ -1,102 +1,119 @@
-# 📦 model-service
+# model-service
 
-A lightweight Flask micro‑service that exposes a **sentiment‑analysis model** through a REST API.  It belongs to the *model image* in the REMLA reference architecture and can be queried by the *app‑service* or any HTTP client.
+A lightweight Flask-based microservice for sentiment analysis, exposing a machine learning model via a REST API. This service is a component of the REMLA reference architecture and is intended to be queried by the `app-service` or any compatible HTTP client.
 
----
+## Key Features
 
-## ✨  Key features
+| Endpoint          | Description                                                                                                                    |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `POST /predict`   | Send raw review text and receives a predicted sentiment label ("pos" or "neg").                                              |
+| `POST /correct`   | Submit feedback for a review to collect corrected labels for future model re-training.                           |
+| Swagger UI        | A self-documenting API interface available at `http://<host>:<port>/apidocs`, allowing developers to interact with endpoints.       |
+| Stateless Docker Image   | During the Docker build, the model and bag-of-words vectorizer are pulled from the appropriate model-training GitHub release based on version. |
 
-| Feature                    | Description                                                                                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`POST /predict`**        | Send raw review text → receive a sentiment label *("pos"/"neg")*.                                                                                              |
-| **`POST /correct`**        | Submit feedback (ground‑truth sentiment) for a single review so new labels can be collected for future re‑training.                                            |
-| **Swagger UI**             | Self‑documenting API at `http://HOST:PORT/apidocs`.  Try endpoints directly from the browser.                                                                  |
-| **Stateless Docker image** | The pre‑trained model and its BoW vectoriser are pulled from the *model‑training* GitHub release during the Docker build, so the final image starts instantly. |
-| **Automated GHCR release** | Pushing a Git tag (e.g. `v0.1.0`) triggers a workflow that builds & pushes an image with semantic tags (`:v0.1.0`, `:0.1.latest`, `:0.latest`, `:latest`).     |
-
----
-
-## 🗂  Repository layout
+## Repository Structure
 
 ```text
 model-service/
-├── .github/workflows/release.yml   # CI / CD pipeline
-├── dockerfile                      # Image build recipe
-├── requirements.txt                # Python run‑time deps
+├── .github/workflows/prerelease.yml # Release CI/CD pipeline
+├── .github/workflows/release.yml    # Pre-release CI/CD pipeline
+├── dockerfile                       # Docker image definition
+├── requirements.txt                 # Python runtime dependencies
 └── src/main/
-    └── flask_service.py            # Application entry‑point (Flask + routes)
-```
+    └── flask_service.py             # Flask application and API endpoints
+````
 
-*The model artefacts (`model-<ver>.pkl`, `bow-<ver>.pkl`) are **not** stored in the repo; they are downloaded in the Docker build step from the `model-training` release that matches `ML_MODEL_VERSION`.*
+Note: Model artifacts (`model-<version>.pkl`, `bow-<version>.pkl`) are not committed to the repository. They are dynamically downloaded during the image build based on the `ML_MODEL_VERSION`.
 
----
+## Running Locally (Development)
 
-## 🏁  Quick‑start (local dev)
+### Prerequisites
 
-> Requires Python ≥ 3.10 and `pip`.  You’ll also need the model artefacts in the working directory (download them from the corresponding GitHub release).
+* Python 3.10 or later
+* pip
+* The model files corresponding to your target version (`model-<version>.pkl`, `bow-<version>.pkl`) must be downloaded manually into the working directory.
+
+### Steps
 
 ```bash
-# 1  Install dependencies
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate      # On Linux/macOS
+venv\Scripts\activate         # On Windows
+
+# Install dependencies
 pip install -r requirements.txt
-python -m nltk.downloader stopwords  # one‑time corpus fetch
 
-# 2  Run the service
-export ML_MODEL_VERSION=v0.1.0  # or whichever version you need
+# Set environment variables
+export ML_MODEL_VERSION=v0.1.0                # or desired version
 export FLASK_APP=src/main/flask_service.py
-flask run -p 8080      # → http://localhost:8080
+
+# Start the Flask server
+flask run -p 8080
 ```
 
+### Example Request
+
 ```bash
-# Query the prediction endpoint
 curl -X POST http://localhost:8080/predict \
      -H "Content-Type: application/json" \
-     -d '{"input":"Loved it! Amazing food."}'
-# → {"sentiment":"pos"}
+     -d '{"input": "Loved it! Amazing food."}'
+# Response: {"sentiment": "pos"}
 ```
 
----
+## Running with Docker
 
-## 🐳  Quick‑start (Docker)
+### Build and Run
 
 ```bash
-# Build image using embedded artefact download
 export ML_MODEL_VERSION=v0.1.0
 
 docker build -t model-service:$ML_MODEL_VERSION .
 
-docker run --rm -p 8080:8080 -e ML_MODEL_VERSION=$ML_MODEL_VERSION model-service:$ML_MODEL_VERSION
+docker run --rm -p 8080:8080 \
+    -e ML_MODEL_VERSION=$ML_MODEL_VERSION \
+    model-service:$ML_MODEL_VERSION
 ```
 
-## 🐳 Pull Docker image
-```
+### Pull from GitHub Container Registry
+
+```bash
 docker pull ghcr.io/remla25-team6/model-service:latest
 ```
 
----
-
-## 🛠  API reference
+## API Reference
 
 ### `POST /predict`
 
-```jsonc
-// Request
-{ "input": "Terrible service, never again." }
+Request:
 
-// Response 200
-{ "sentiment": "neg" }
+```json
+{ "input": "Terrible service, never again." }
 ```
 
-| Code | Meaning      | When                                         |
-| ---- | ------------ | -------------------------------------------- |
-| 200  | OK           | Valid request, prediction returned.          |
-| 400  | Bad Request  | Missing / malformed `input`.                 |
-| 500  | Server Error | Exception during preprocessing or inference. |
+Response:
+
+```json
+{ "sentiment": "neg" }
+```
+Or,
+```json
+{ "sentiment": "pos" }
+```
+
+| Status Code | Description                             |
+| ----------- | --------------------------------------- |
+| 200         | Prediction successful                   |
+| 400         | Missing / malformed request             |
+| 500         | Server error through exception during preprocessing or inference |
 
 ---
 
 ### `POST /correct`
 
-```jsonc
+Request:
+
+```json
 {
   "entries": {
     "input": "Food was cold but staff were friendly.",
@@ -107,18 +124,29 @@ docker pull ghcr.io/remla25-team6/model-service:latest
 
 Returns the same review, the user label, and the model label.
 
----
+## CI/CD
+This project uses GitHub Actions for automated container image releases.
 
-## ♻️  Release workflow (summary)
+### Release
+To publish an official release:
+1. Ensure all changes are committed and pushed to any desired `release` branch.
+2. Tag the commit with a version like `v0.1.0` and push:
+    ```bash
+    git tag v0.1.0
+    git push origin v0.1.0
+    ```
+3. This triggers the `release.yml` workflow, which:
+   - Downloads the corresponding model artifacts (`model-<ver>.pkl`, `bow-<ver>.pkl`) from the `model-training` release.
+   - Builds the Docker image with the specified model version.
+   - Pushes the image to GitHub Container Registry (GHCR) with semantic tags:
+     - `v0.1.0`, `0.1.latest`, `0.latest`, and `latest`.
 
-1. **Train & publish** a model in *model-training*; its release assets contain `model-<ver>.pkl` and `bow-<ver>.pkl`.
-2. Tag `model-service` (`git tag v0.1.0 && git push origin v0.1.0`).
-3. The workflow in `.github/workflows/release.yml` downloads the artefacts, builds the image, and pushes it to GHCR under multiple semantic tags.
+### Pre-Release
+To publish a pre-release:
+1. Push a commit to the `main` branch (i.e. merge a pull request to `main`).
+2. The `prerelease.yml` workflow automatically runs on every commit to `main`.
+3. It builds the image and tags it using a timestamped version like `0.1.0-pre.20250625.123456`.
+4. The images are available on GHCR for testing and staging environments.
 
-The *app-service* pulls the appropriate tag (often `X.Y.latest`).
-
----
-
-
-### AI DISCLAIMER
-*This documentation has been generated with the help of ChatGPT o3.*
+## AI Disclaimer
+Used ChatGPT-4o to refine this README and improve technical clarity.
